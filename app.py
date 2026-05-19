@@ -6,31 +6,34 @@ import os
 app = Flask(__name__)
 
 # ==========================================
-# LOAD EXCEL
-# ==========================================
-
-EXCEL_FILE = "germany_processes.xlsx"
-
-df = pd.read_excel(EXCEL_FILE)
-
-df.columns = [col.strip() for col in df.columns]
-
-print("Excel loaded successfully")
-print(df.columns)
-
-# ==========================================
 # WEBEX CONFIG
 # ==========================================
 
-WEBEX_BOT_TOKEN = os.getenv("WEBEX_BOT_TOKEN")
+WEBEX_BOT_TOKEN = os.getenv("NDhmZWNkNDUtMzI3NS00Yjc5LTkwNjQtNjI1M2ZiNGZiYWU1NTljNzU4YWMtMjM3_PF84_1eb65fdf-9643-417f-9974-ad72cae0e10f")
 
 WEBEX_API_URL = "https://webexapis.com/v1/messages"
+
+EXCEL_FILE = "germany_processes.xlsx"
+
+# ==========================================
+# LOAD EXCEL FUNCTION
+# ==========================================
+
+def load_excel():
+
+    df = pd.read_excel(EXCEL_FILE)
+
+    df.columns = [col.strip() for col in df.columns]
+
+    return df
 
 # ==========================================
 # SEARCH FUNCTION
 # ==========================================
 
 def search_process(user_message):
+
+    df = load_excel()
 
     user_message = user_message.lower()
 
@@ -55,8 +58,6 @@ def search_process(user_message):
         if keyword in user_message:
             matched_process = process_name
             break
-
-    print(f"Matched Process: {matched_process}")
 
     if not matched_process:
 
@@ -91,7 +92,7 @@ Germany Guidance:
     return "No matching guidance found."
 
 # ==========================================
-# SEND WEBEX MESSAGE
+# SEND MESSAGE
 # ==========================================
 
 def send_webex_message(room_id, message):
@@ -106,15 +107,11 @@ def send_webex_message(room_id, message):
         "text": message
     }
 
-    response = requests.post(
+    requests.post(
         WEBEX_API_URL,
         headers=headers,
         json=data
     )
-
-    print("Message sent to Webex")
-    print(response.status_code)
-    print(response.text)
 
 # ==========================================
 # HOME ROUTE
@@ -126,7 +123,7 @@ def home():
     return "Germany Process Navigator is LIVE"
 
 # ==========================================
-# WEBHOOK ROUTE
+# WEBHOOK
 # ==========================================
 
 @app.route('/webhook', methods=['POST'])
@@ -134,11 +131,7 @@ def webhook():
 
     try:
 
-        print("Webhook received")
-
         data = request.json
-
-        print(data)
 
         room_id = data['data']['roomId']
         message_id = data['data']['id']
@@ -147,7 +140,6 @@ def webhook():
             "Authorization": f"Bearer {WEBEX_BOT_TOKEN}"
         }
 
-        # Get full message details
         message_response = requests.get(
             f"https://webexapis.com/v1/messages/{message_id}",
             headers=headers
@@ -155,33 +147,21 @@ def webhook():
 
         message_details = message_response.json()
 
-        print("Message Details:")
-        print(message_details)
-
-        # Ignore bot messages
+        # Ignore bot's own messages
         if message_details.get('personEmail', '').endswith('webex.bot'):
-
-            print("Ignoring bot message")
 
             return "OK"
 
         user_message = message_details.get('text', '')
 
-        print(f"User Message: {user_message}")
-
-        # Generate response
         bot_response = search_process(user_message)
 
-        print(f"Bot Response: {bot_response}")
-
-        # Send reply
         send_webex_message(room_id, bot_response)
 
         return "OK"
 
     except Exception as e:
 
-        print("ERROR OCCURRED")
         print(str(e))
 
         return "ERROR"
