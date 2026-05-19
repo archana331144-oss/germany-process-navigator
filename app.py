@@ -1,6 +1,7 @@
 from flask import Flask, request
 import pandas as pd
 import requests
+import os
 
 app = Flask(__name__)
 
@@ -13,11 +14,14 @@ EXCEL_FILE = "germany_processes.xlsx"
 # Load Excel
 df = pd.read_excel(EXCEL_FILE)
 
+# Clean column names
+df.columns = [col.strip() for col in df.columns]
+
 # ==========================================
 # WEBEX BOT TOKEN
 # ==========================================
 
-WEBEX_BOT_TOKEN = "NDhmZWNkNDUtMzI3NS00Yjc5LTkwNjQtNjI1M2ZiNGZiYWU1NTljNzU4YWMtMjM3_PF84_1eb65fdf-9643-417f-9974-ad72cae0e10f"
+WEBEX_BOT_TOKEN = os.getenv("WEBEX_BOT_TOKEN")
 
 WEBEX_API_URL = "https://webexapis.com/v1/messages"
 
@@ -29,13 +33,52 @@ def search_process(user_message):
 
     user_message = user_message.lower()
 
+    # Keyword mapping
+    keyword_mapping = {
+        "work hours": "Work hours",
+        "part time": "Work hours",
+        "full time": "Work hours",
+        "job title": "Job Title",
+        "title change": "Job Title",
+        "termination": "Termination",
+        "resignation": "Termination",
+        "work location": "Work Location",
+        "location": "Work Location",
+        "personal data": "Personal Data",
+        "citizenship": "Personal Data"
+    }
+
+    matched_process = None
+
+    # Identify matching process
+    for keyword, process_name in keyword_mapping.items():
+
+        if keyword in user_message:
+            matched_process = process_name
+            break
+
+    # No match found
+    if not matched_process:
+
+        return """
+Germany Process Navigator
+
+Sorry, I could not identify the process.
+
+Try asking:
+- work hours
+- part time
+- title change
+- termination
+- work location
+"""
+
+    # Search Excel
     for index, row in df.iterrows():
 
-        process = str(row['Process']).lower()
-        steps = str(row['German Specific steps'])
+        process = str(row['Process'])
 
-        # Match process names in user question
-        if process in user_message:
+        if matched_process.lower() in process.lower():
 
             return f"""
 Germany Process Navigator
@@ -44,20 +87,13 @@ Process Identified:
 {row['Process']}
 
 Germany Guidance:
-{steps}
+{row['German Specific steps']}
 """
 
     return """
 Germany Process Navigator
 
-Sorry, I could not identify the process.
-
-Try asking:
-- Work hours change
-- Job title change
-- Work location
-- Termination
-- Personal data
+Process found but no guidance available.
 """
 
 # ==========================================
@@ -100,7 +136,7 @@ def webhook():
             "Authorization": f"Bearer {WEBEX_BOT_TOKEN}"
         }
 
-        # Get message text
+        # Get message details
         message_details = requests.get(
             f"https://webexapis.com/v1/messages/{message_id}",
             headers=headers
@@ -108,21 +144,36 @@ def webhook():
 
         user_message = message_details['text']
 
+        print(f"User message: {user_message}")
+
         # Ignore bot's own messages
         if message_details.get('personEmail', '').endswith('webex.bot'):
             return "OK"
 
-        # Search Excel
+        # Search process
         response = search_process(user_message)
 
-        # Send response
+        print(f"Bot response: {response}")
+
+        # Send reply
         send_webex_message(room_id, response)
 
         return "OK"
 
     except Exception as e:
-        print(e)
+
+        print(f"ERROR: {e}")
+
         return "ERROR"
+
+# ==========================================
+# HOME ROUTE
+# ==========================================
+
+@app.route('/')
+def home():
+
+    return "Germany Process Navigator is live!"
 
 # ==========================================
 # RUN APP
