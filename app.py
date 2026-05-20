@@ -31,64 +31,103 @@ def search_process(user_message):
 
     df = load_excel()
 
-    user_message = user_message.lower()
+    # Normalize input
+    cleaned_message = user_message.lower().strip()
 
+    # Remove spaces for flexible matching
+    compact_message = cleaned_message.replace(" ", "")
+
+    # Keyword variations
     keyword_mapping = {
-        "work hours": "Work hours",
-        "part time": "Work hours",
-        "full time": "Work hours",
-        "job title": "Job Title",
-        "title": "Job Title",
+        "workhours": "Work hours",
+        "parttime": "Work hours",
+        "fulltime": "Work hours",
+
+        "jobtitle": "Job Title",
+        "titlechange": "Job Title",
+
         "termination": "Termination",
         "resignation": "Termination",
-        "work location": "Work Location",
-        "location": "Work Location",
-        "personal data": "Personal Data",
-        "citizenship": "Personal Data"
+
+        "worklocation": "Work Location",
+        "locationchange": "Work Location",
+
+        "personaldata": "Personal Data",
+        "citizenship": "Personal Data",
+
+        "bankdetails": "Bank Details",
+        "compensation": "Compensation",
+        "promotion": "Promotion",
+        "leave": "Leave"
     }
 
     matched_process = None
 
+    # Flexible keyword matching
     for keyword, process_name in keyword_mapping.items():
 
-        if keyword in user_message:
+        if keyword in compact_message:
             matched_process = process_name
             break
 
+    # Fallback matching using Excel process names
+    if not matched_process:
+
+        for index, row in df.iterrows():
+
+            process_name = str(row['Process']).lower()
+
+            process_compact = process_name.replace(" ", "")
+
+            if process_compact in compact_message:
+                matched_process = row['Process']
+                break
+
+    # No match found
     if not matched_process:
 
         return """
 Germany Process Navigator
 
-Sorry, I could not identify the process.
+I could not identify the process.
 
-Try asking:
-- work hours
-- title change
-- termination
-- work location
+Try:
+• work hours
+• title change
+• work location
+• termination
+• compensation
 """
 
+    # Find matching process in Excel
     for index, row in df.iterrows():
 
         process = str(row['Process'])
 
         if matched_process.lower() in process.lower():
 
+            guidance = str(row['German Specific steps']).strip()
+
+            guidance = guidance.replace("•", "\n•")
+
             return f"""
 Germany Process Navigator
 
-Process Identified:
+Process:
 {row['Process']}
 
-Germany Guidance:
-{row['German Specific steps']}
+Key Guidance:
+{guidance[:1200]}
 """
 
-    return "No matching guidance found."
+    return """
+Germany Process Navigator
+
+No guidance found for this process.
+"""
 
 # ==========================================
-# SEND MESSAGE
+# SEND WEBEX MESSAGE
 # ==========================================
 
 def send_webex_message(room_id, message):
@@ -133,7 +172,6 @@ def webhook():
 
         print(data)
 
-        # IMPORTANT
         # Ignore bot's own messages
         if data['data'].get('personEmail', '').endswith('webex.bot'):
 
@@ -143,13 +181,13 @@ def webhook():
 
         room_id = data['data']['roomId']
 
-        # Get actual message
         message_id = data['data']['id']
 
         headers = {
             "Authorization": f"Bearer {WEBEX_BOT_TOKEN}"
         }
 
+        # Get actual message text
         message_response = requests.get(
             f"https://webexapis.com/v1/messages/{message_id}",
             headers=headers
@@ -161,8 +199,10 @@ def webhook():
 
         print(f"User Message: {user_message}")
 
+        # Generate response
         bot_response = search_process(user_message)
 
+        # Send reply
         send_webex_message(room_id, bot_response)
 
         return "OK"
@@ -174,7 +214,7 @@ def webhook():
         return "ERROR"
 
 # ==========================================
-# START
+# START APP
 # ==========================================
 
 if __name__ == '__main__':
