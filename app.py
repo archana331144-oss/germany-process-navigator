@@ -48,6 +48,21 @@ def format_guidance(guidance_text):
 
     guidance_text = str(guidance_text).strip()
 
+    # Remove unnecessary labels
+    unwanted_labels = [
+        "Process:",
+        "process:",
+        "Guidance:",
+        "guidance:"
+    ]
+
+    for label in unwanted_labels:
+
+        guidance_text = guidance_text.replace(
+            label,
+            ""
+        )
+
     lines = guidance_text.split('\n')
 
     formatted_lines = []
@@ -74,7 +89,7 @@ def format_guidance(guidance_text):
     return "\n\n".join(formatted_lines)
 
 # ==========================================
-# EXTRACT SPECIAL CONSIDERATIONS
+# SPLIT SPECIAL CONSIDERATIONS
 # ==========================================
 
 def split_special_considerations(text):
@@ -100,7 +115,7 @@ def split_special_considerations(text):
 
             special_text = text[split_index:].strip()
 
-            # Clean heading
+            # Clean heading text
             special_text = re.sub(
                 r'(?i)special considerations?:',
                 '',
@@ -229,7 +244,10 @@ PROCESS
 {formatted_process}
 """
 
-    # Add special considerations if available
+    # ======================================
+    # SPECIAL CONSIDERATIONS
+    # ======================================
+
     if special_text:
 
         formatted_special = format_guidance(
