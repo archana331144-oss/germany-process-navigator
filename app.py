@@ -48,20 +48,80 @@ def format_guidance(guidance_text):
 
     guidance_text = str(guidance_text).strip()
 
-    # Split lines
     lines = guidance_text.split('\n')
 
-    cleaned_lines = []
+    formatted_lines = []
 
     for line in lines:
 
         line = line.strip()
 
-        if line:
+        if not line:
+            continue
 
-            cleaned_lines.append(f"• {line}")
+        # Remove existing bullets
+        line = line.lstrip('•').strip()
 
-    return "\n".join(cleaned_lines)
+        # Keep numbered steps clean
+        if re.match(r'^\d+\)', line):
+
+            formatted_lines.append(line)
+
+        else:
+
+            formatted_lines.append(f"• {line}")
+
+    return "\n\n".join(formatted_lines)
+
+# ==========================================
+# EXTRACT SPECIAL CONSIDERATIONS
+# ==========================================
+
+def split_special_considerations(text):
+
+    text = str(text)
+
+    special_patterns = [
+        "special considerations:",
+        "special consideration:",
+        "important:",
+        "note:"
+    ]
+
+    lower_text = text.lower()
+
+    for pattern in special_patterns:
+
+        if pattern in lower_text:
+
+            split_index = lower_text.index(pattern)
+
+            main_text = text[:split_index].strip()
+
+            special_text = text[split_index:].strip()
+
+            # Clean heading
+            special_text = re.sub(
+                r'(?i)special considerations?:',
+                '',
+                special_text
+            )
+
+            special_text = re.sub(
+                r'(?i)important:',
+                '',
+                special_text
+            )
+
+            special_text = re.sub(
+                r'(?i)note:',
+                '',
+                special_text
+            )
+
+            return main_text, special_text.strip()
+
+    return text, None
 
 # ==========================================
 # SEARCH PROCESS
@@ -135,8 +195,6 @@ def search_process(user_message):
     if matched_row is None:
 
         return """
-Germany Process Navigator
-
 I could not identify the process.
 
 Try examples like:
@@ -151,18 +209,41 @@ Try examples like:
     # FORMAT RESPONSE
     # ======================================
 
-    guidance = format_guidance(
+    raw_guidance = str(
         matched_row['German Specific steps']
     )
 
+    process_text, special_text = split_special_considerations(
+        raw_guidance
+    )
+
+    formatted_process = format_guidance(
+        process_text
+    )
+
     response = f"""
-Germany Process Navigator
+━━━━━━━━━━━━━━━━━━
+PROCESS
+━━━━━━━━━━━━━━━━━━
 
-━━━━━━━━━━━━━━━
-GUIDANCE
-━━━━━━━━━━━━━━━
+{formatted_process}
+"""
 
-{guidance[:2000]}
+    # Add special considerations if available
+    if special_text:
+
+        formatted_special = format_guidance(
+            special_text
+        )
+
+        response += f"""
+
+
+━━━━━━━━━━━━━━━━━━
+SPECIAL CONSIDERATIONS
+━━━━━━━━━━━━━━━━━━
+
+{formatted_special}
 """
 
     return response
@@ -213,7 +294,7 @@ def webhook():
 
         print(data)
 
-        # Ignore bot messages
+        # Ignore bot's own messages
         if data['data'].get(
             'personEmail',
             ''
@@ -231,7 +312,7 @@ def webhook():
             "Authorization": f"Bearer {WEBEX_BOT_TOKEN}"
         }
 
-        # Get actual message
+        # Get actual user message
         message_response = requests.get(
             f"https://webexapis.com/v1/messages/{message_id}",
             headers=headers
@@ -246,7 +327,7 @@ def webhook():
 
         print(f"User Message: {user_message}")
 
-        # Generate bot response
+        # Generate response
         bot_response = search_process(
             user_message
         )
