@@ -4,21 +4,16 @@ import os
 
 app = Flask(__name__)
 
-WEBEX_BOT_TOKEN = os.getenv("NjZlZWNjODItOTJlZC00ZDYyLWEwMmItNmY2YjdiMDdiNGI2ZDA5MzM2NGUtN2Zl_PF84_1eb65fdf-9643-417f-9974-ad72cae0e10f")
+WEBEX_BOT_TOKEN = os.getenv("WEBEX_BOT_TOKEN")
 
 WEBEX_API_URL = "https://webexapis.com/v1/messages"
 
-# ==========================================
-# HOME
-# ==========================================
+print("TOKEN CHECK:")
+print(WEBEX_BOT_TOKEN)
 
 @app.route('/')
 def home():
     return "Germany Process Navigator is LIVE"
-
-# ==========================================
-# SEND MESSAGE
-# ==========================================
 
 def send_webex_message(room_id, message):
 
@@ -38,12 +33,11 @@ def send_webex_message(room_id, message):
         json=data
     )
 
+    print("STATUS CODE:")
     print(response.status_code)
-    print(response.text)
 
-# ==========================================
-# WEBHOOK
-# ==========================================
+    print("RESPONSE:")
+    print(response.text)
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -70,10 +64,6 @@ def webhook():
         print(str(e))
 
         return "ERROR"
-
-# ==========================================
-# START
-# ==========================================
 
 if __name__ == '__main__':
 
