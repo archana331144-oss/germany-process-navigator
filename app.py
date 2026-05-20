@@ -2,8 +2,13 @@ from flask import Flask, request
 import requests
 import os
 import pandas as pd
+import re
 
 app = Flask(__name__)
+
+# ==========================================
+# CONFIG
+# ==========================================
 
 WEBEX_BOT_TOKEN = os.getenv("WEBEX_BOT_TOKEN")
 
@@ -24,107 +29,116 @@ def load_excel():
     return df
 
 # ==========================================
-# SEARCH FUNCTION
+# NORMALIZE TEXT
+# ==========================================
+
+def normalize_text(text):
+
+    return re.sub(
+        r'[^a-zA-Z0-9]',
+        '',
+        text.lower()
+    )
+
+# ==========================================
+# FORMAT GUIDANCE
+# ==========================================
+
+def format_guidance(guidance_text):
+
+    guidance_text = str(guidance_text).strip()
+
+    # Split into lines
+    lines = guidance_text.split('\n')
+
+    cleaned_lines = []
+
+    for line in lines:
+
+        line = line.strip()
+
+        if line:
+
+            cleaned_lines.append(f"• {line}")
+
+    return "\n".join(cleaned_lines)
+
+# ==========================================
+# SEARCH PROCESS
 # ==========================================
 
 def search_process(user_message):
 
     df = load_excel()
 
-    # Normalize input
-    cleaned_message = user_message.lower().strip()
+    normalized_message = normalize_text(user_message)
 
-    # Remove spaces for flexible matching
-    compact_message = cleaned_message.replace(" ", "")
+    matched_row = None
 
-    # Keyword variations
-    keyword_mapping = {
-        "workhours": "Work hours",
-        "parttime": "Work hours",
-        "fulltime": "Work hours",
+    # Flexible matching against all process names
+    for index, row in df.iterrows():
 
-        "jobtitle": "Job Title",
-        "titlechange": "Job Title",
+        process_name = str(row['Process'])
 
-        "termination": "Termination",
-        "resignation": "Termination",
+        normalized_process = normalize_text(process_name)
 
-        "worklocation": "Work Location",
-        "locationchange": "Work Location",
+        if (
+            normalized_process in normalized_message
+            or normalized_message in normalized_process
+        ):
 
-        "personaldata": "Personal Data",
-        "citizenship": "Personal Data",
-
-        "bankdetails": "Bank Details",
-        "compensation": "Compensation",
-        "promotion": "Promotion",
-        "leave": "Leave"
-    }
-
-    matched_process = None
-
-    # Flexible keyword matching
-    for keyword, process_name in keyword_mapping.items():
-
-        if keyword in compact_message:
-            matched_process = process_name
+            matched_row = row
             break
 
-    # Fallback matching using Excel process names
-    if not matched_process:
-
-        for index, row in df.iterrows():
-
-            process_name = str(row['Process']).lower()
-
-            process_compact = process_name.replace(" ", "")
-
-            if process_compact in compact_message:
-                matched_process = row['Process']
-                break
-
-    # No match found
-    if not matched_process:
+    # No process found
+    if matched_row is None:
 
         return """
 Germany Process Navigator
 
 I could not identify the process.
 
-Try:
+Try examples like:
 • work hours
-• title change
 • work location
+• job title
 • termination
 • compensation
 """
 
-    # Find matching process in Excel
-    for index, row in df.iterrows():
+    # Extract values
+    process_name = str(matched_row['Process'])
 
-        process = str(row['Process'])
+    guidance = format_guidance(
+        matched_row['German Specific steps']
+    )
 
-        if matched_process.lower() in process.lower():
-
-            guidance = str(row['German Specific steps']).strip()
-
-            guidance = guidance.replace("•", "\n•")
-
-            return f"""
+    # Structured response
+    response = f"""
 Germany Process Navigator
 
-Process:
-{row['Process']}
+━━━━━━━━━━━━━━━
+PROCESS IDENTIFIED
+━━━━━━━━━━━━━━━
 
-Key Guidance:
-{guidance[:1200]}
+{process_name}
+
+━━━━━━━━━━━━━━━
+KEY GUIDANCE
+━━━━━━━━━━━━━━━
+
+{guidance[:1500]}
+
+━━━━━━━━━━━━━━━
+IMPORTANT
+━━━━━━━━━━━━━━━
+
+• Validate approvals if required
+• Ensure Germany-specific compliance checks
+• Review supporting documentation before processing
 """
 
-    return """
-Germany Process Navigator
-
-No guidance found for this process.
-"""
+    return response
 
 # ==========================================
 # SEND WEBEX MESSAGE
@@ -173,7 +187,10 @@ def webhook():
         print(data)
 
         # Ignore bot's own messages
-        if data['data'].get('personEmail', '').endswith('webex.bot'):
+        if data['data'].get(
+            'personEmail',
+            ''
+        ).endswith('webex.bot'):
 
             print("Ignoring bot message")
 
@@ -195,7 +212,10 @@ def webhook():
 
         message_details = message_response.json()
 
-        user_message = message_details.get('text', '')
+        user_message = message_details.get(
+            'text',
+            ''
+        )
 
         print(f"User Message: {user_message}")
 
@@ -203,7 +223,10 @@ def webhook():
         bot_response = search_process(user_message)
 
         # Send reply
-        send_webex_message(room_id, bot_response)
+        send_webex_message(
+            room_id,
+            bot_response
+        )
 
         return "OK"
 
@@ -219,6 +242,11 @@ def webhook():
 
 if __name__ == '__main__':
 
-    port = int(os.environ.get("PORT", 5000))
+    port = int(
+        os.environ.get("PORT", 5000)
+    )
 
-    app.run(host='0.0.0.0', port=port)
+    app.run(
+        host='0.0.0.0',
+        port=port
+    )
