@@ -24,7 +24,6 @@ def load_excel():
 
     df = pd.read_excel(EXCEL_FILE)
 
-    # Clean column names
     df.columns = [col.strip() for col in df.columns]
 
     return df
@@ -38,7 +37,7 @@ def normalize_text(text):
     return re.sub(
         r'[^a-zA-Z0-9]',
         '',
-        text.lower()
+        str(text).lower()
     )
 
 # ==========================================
@@ -49,7 +48,7 @@ def format_guidance(guidance_text):
 
     guidance_text = str(guidance_text).strip()
 
-    # Split into lines
+    # Split lines
     lines = guidance_text.split('\n')
 
     cleaned_lines = []
@@ -72,26 +71,67 @@ def search_process(user_message):
 
     df = load_excel()
 
-    normalized_message = normalize_text(user_message)
+    normalized_message = normalize_text(
+        user_message
+    )
 
     matched_row = None
 
-    # Flexible matching against all process names
+    # ======================================
+    # MATCH USING KEYWORDS
+    # ======================================
+
     for index, row in df.iterrows():
 
-        process_name = str(row['Process'])
+        keywords = str(
+            row['Keywords']
+        ).split(',')
 
-        normalized_process = normalize_text(process_name)
+        for keyword in keywords:
 
-        if (
-            normalized_process in normalized_message
-            or normalized_message in normalized_process
-        ):
+            normalized_keyword = normalize_text(
+                keyword
+            )
 
-            matched_row = row
+            if (
+                normalized_keyword in normalized_message
+                or normalized_message in normalized_keyword
+            ):
+
+                matched_row = row
+                break
+
+        if matched_row is not None:
             break
 
-    # No process found
+    # ======================================
+    # FALLBACK MATCH USING PROCESS NAME
+    # ======================================
+
+    if matched_row is None:
+
+        for index, row in df.iterrows():
+
+            process_name = str(
+                row['Process']
+            )
+
+            normalized_process = normalize_text(
+                process_name
+            )
+
+            if (
+                normalized_process in normalized_message
+                or normalized_message in normalized_process
+            ):
+
+                matched_row = row
+                break
+
+    # ======================================
+    # NO MATCH FOUND
+    # ======================================
+
     if matched_row is None:
 
         return """
@@ -107,12 +147,14 @@ Try examples like:
 • compensation
 """
 
-    # Extract guidance
+    # ======================================
+    # FORMAT RESPONSE
+    # ======================================
+
     guidance = format_guidance(
         matched_row['German Specific steps']
     )
 
-    # Structured response
     response = f"""
 Germany Process Navigator
 
@@ -120,15 +162,7 @@ Germany Process Navigator
 GUIDANCE
 ━━━━━━━━━━━━━━━
 
-{guidance[:1500]}
-
-━━━━━━━━━━━━━━━
-IMPORTANT CHECKS
-━━━━━━━━━━━━━━━
-
-• Validate approvals if required
-• Ensure Germany-specific compliance checks
-• Review supporting documentation before processing
+{guidance[:2000]}
 """
 
     return response
@@ -179,7 +213,7 @@ def webhook():
 
         print(data)
 
-        # Ignore bot's own messages
+        # Ignore bot messages
         if data['data'].get(
             'personEmail',
             ''
@@ -197,7 +231,7 @@ def webhook():
             "Authorization": f"Bearer {WEBEX_BOT_TOKEN}"
         }
 
-        # Get actual message text
+        # Get actual message
         message_response = requests.get(
             f"https://webexapis.com/v1/messages/{message_id}",
             headers=headers
@@ -212,10 +246,12 @@ def webhook():
 
         print(f"User Message: {user_message}")
 
-        # Generate response
-        bot_response = search_process(user_message)
+        # Generate bot response
+        bot_response = search_process(
+            user_message
+        )
 
-        # Send reply
+        # Send response
         send_webex_message(
             room_id,
             bot_response
