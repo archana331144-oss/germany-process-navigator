@@ -24,6 +24,7 @@ def load_excel():
 
     df = pd.read_excel(EXCEL_FILE)
 
+    # Clean column names
     df.columns = [col.strip() for col in df.columns]
 
     return df
@@ -106,9 +107,7 @@ Try examples like:
 • compensation
 """
 
-    # Extract values
-    process_name = str(matched_row['Process'])
-
+    # Extract guidance
     guidance = format_guidance(
         matched_row['German Specific steps']
     )
@@ -118,19 +117,13 @@ Try examples like:
 Germany Process Navigator
 
 ━━━━━━━━━━━━━━━
-PROCESS IDENTIFIED
-━━━━━━━━━━━━━━━
-
-{process_name}
-
-━━━━━━━━━━━━━━━
-KEY GUIDANCE
+GUIDANCE
 ━━━━━━━━━━━━━━━
 
 {guidance[:1500]}
 
 ━━━━━━━━━━━━━━━
-IMPORTANT
+IMPORTANT CHECKS
 ━━━━━━━━━━━━━━━
 
 • Validate approvals if required
